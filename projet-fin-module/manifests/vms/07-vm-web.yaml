@@ -1,0 +1,51 @@
+# VM2 — Serveur Web (Nginx) dans la zone DMZ
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm-web
+  namespace: mbened-dev
+  labels:
+    app: web
+spec:
+  runStrategy: Manual
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      domain:
+        cpu:
+          cores: 1
+        memory:
+          guest: 1Gi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: rootdisk
+          containerDisk:
+            image: quay.io/containerdisks/ubuntu:22.04
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              hostname: vm-web
+              user: cloud-user
+              password: openshift123
+              chpasswd: {expire: False}
+              runcmd:
+                - apt-get update -y && apt-get install -y nginx
+                - systemctl enable nginx && systemctl start nginx
+                - echo '<html><head><title>3-Tiers OpenShift</title></head><body style="background:#0a0a1a;color:#fff;font-family:Arial;text-align:center"><h1 style="color:#e00;padding:40px">Architecture 3-Tiers sur OpenShift</h1><p>Firewall | Serveur Web | Base de donnees</p><p style="color:#00ff88">Deploye par mbenendiaye657 — mbened-dev</p></body></html>' > /var/www/html/index.html
+      terminationGracePeriodSeconds: 0

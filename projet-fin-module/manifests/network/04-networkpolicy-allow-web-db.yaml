@@ -1,0 +1,21 @@
+# NetworkPolicy — Autoriser uniquement VM2 (web) vers VM3 (MySQL) sur port 3306
+# Respecte l'architecture : DMZ peut accéder au LAN (DB) mais pas l'inverse depuis Internet
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-to-db
+  namespace: mbened-dev
+spec:
+  podSelector:
+    matchLabels:
+      app: mysql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: web
+      ports:
+        - protocol: TCP
+          port: 3306

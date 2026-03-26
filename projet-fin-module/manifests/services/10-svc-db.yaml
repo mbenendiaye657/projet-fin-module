@@ -1,0 +1,15 @@
+# Service interne MySQL — jamais accessible depuis Internet
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-db
+  namespace: mbened-dev
+spec:
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      protocol: TCP
+      port: 3306
+      targetPort: 3306
+  type: ClusterIP

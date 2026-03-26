@@ -1,0 +1,76 @@
+name: Deploy mbened-dev Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to OpenShift mbened-dev
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install OpenShift CLI (oc)
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: latest
+
+      - name: Login to OpenShift cluster
+        run: |
+          oc login \
+            --token="${{ secrets.OC_TOKEN }}" \
+            --server="${{ secrets.OC_SERVER }}" \
+            --insecure-skip-tls-verify=true
+          oc whoami
+
+      - name: Ensure namespace mbened-dev exists
+        run: |
+          oc get namespace mbened-dev 2>/dev/null || oc create namespace mbened-dev
+          oc project mbened-dev
+
+      - name: Apply network resources
+        run: |
+          oc apply -f manifests/network/00-namespace.yaml
+          oc apply -f manifests/network/03-networkpolicy-deny-all.yaml
+          oc apply -f manifests/network/04-networkpolicy-allow-web-db.yaml
+
+      - name: Apply MySQL secret
+        run: |
+          oc apply -f manifests/vms/05-secret-mysql.yaml
+
+      - name: Apply VMs and DB
+        run: |
+          oc apply -f manifests/vms/08-vm-db.yaml
+          oc apply -f manifests/vms/07-vm-web.yaml
+          oc apply -f manifests/vms/06-vm-firewall.yaml
+
+      - name: Start VMs
+        run: |
+          virtctl start vm-firewall -n mbened-dev || true
+          virtctl start vm-web -n mbened-dev || true
+
+      - name: Apply services and route
+        run: |
+          oc apply -f manifests/services/
+
+      - name: Verify deployment
+        run: |
+          echo "========================================="
+          echo "  mbened-dev — État du déploiement"
+          echo "========================================="
+          echo "--- VirtualMachines ---"
+          oc get vm -n mbened-dev
+          echo "--- Deployments (MySQL) ---"
+          oc get deployment -n mbened-dev
+          echo "--- Services ---"
+          oc get svc -n mbened-dev
+          echo "--- Route publique ---"
+          oc get route -n mbened-dev
+          echo "========================================="
+          echo "  Déploiement mbened-dev terminé ✅"
+          echo "========================================="
