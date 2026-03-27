@@ -1,4 +1,70 @@
-# VM1 — Passerelle/Firewall (Ubuntu 22.04 + iptables)
+# VM1 — Passerelle/Firewall (Ubuntu 22.04 + Double Interface)
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm-firewall
+  namespace: mbened-dev
+  labels:
+    app: firewall
+spec:
+  runStrategy: Always # Changé en Always pour qu'elle démarre tout de suite
+  template:
+    metadata:
+      labels:
+        app: firewall
+    spec:
+      domain:
+        cpu:
+          cores: 1
+        memory:
+          guest: 1Gi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {} # eth0 : Interface vers Internet (Pod Network)
+            - name: dmz-net
+              bridge: {}      # eth1 : Interface vers ton réseau local (nad-dmz)
+      networks:
+        - name: default
+          pod: {}
+        - name: dmz-net
+          multus:
+            networkName: nad-dmz # Doit correspondre exactement au nom de ton NAD
+      volumes:
+        - name: rootdisk
+          containerDisk:
+            image: quay.io/containerdisks/ubuntu:22.04
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              hostname: vm-firewall
+              user: cloud-user
+              password: openshift123
+              chpasswd: { expire: False }
+              packages:
+                - iptables
+                - iptables-persistent
+              runcmd:
+                # 1. Activer le routage IP
+                - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+                - sysctl -p
+                # 2. Configurer le NAT pour que VM-WEB accède à Internet
+                - iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+                # 3. Autoriser le trafic déjà établi
+                - iptables -A FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+                # 4. Autoriser l'accès HTTP vers le serveur Web (Port 80)
+                - iptables -A FORWARD -i eth0 -o eth1 -p tcp --dport 80 -j ACCEPT
+                # 5. Sauvegarder les règles pour qu'elles restent après redémarrage
+                - netfilter-persistent save
+      terminationGracePeriodSeconds: 0# VM1 — Passerelle/Firewall (Ubuntu 22.04 + iptables)
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
