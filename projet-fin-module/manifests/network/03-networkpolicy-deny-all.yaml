@@ -1,4 +1,44 @@
-# NetworkPolicy — Zero Trust avec exceptions nécessaires
+# NetworkPolicy — Zero Trust avec accès Internet autorisé
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: mbened-dev
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    # 1. Autoriser DNS (Port 53)
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # 2. Autoriser la communication interne entre pods
+    - to:
+        - podSelector: {}
+    # 3. Autoriser l'accès à l'API OpenShift
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+    # --- AJOUT : AUTORISER TOUT INTERNET ---
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+    # ---------------------------------------
+  ingress:
+    # Autoriser la communication interne entre pods
+    - from:
+        - podSelector: {}
+    # Autoriser OpenShift console et terminal
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-console# NetworkPolicy — Zero Trust avec exceptions nécessaires
 # Bloque tout le trafic par défaut MAIS autorise DNS et communication interne
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
